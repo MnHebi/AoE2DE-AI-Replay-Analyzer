@@ -1,5 +1,6 @@
 #include "window.h"
 #include "pythonruntime.h"
+#include "helpdialog.h"
 #include <QtTest>
 #include <QApplication>
 #include <QJsonDocument>
@@ -7,6 +8,7 @@
 #include <QTemporaryDir>
 #include <QFile>
 #include <QStatusBar>
+#include <QTextBrowser>
 
 class NativeTests : public QObject {
     Q_OBJECT
@@ -34,6 +36,37 @@ private slots:
         qputenv("AOE2_BACKEND_ROOT",backendRoot.toUtf8());qputenv("AOE2_PYTHON",python.toUtf8());
     }
     void init(){QSettings().clear();QFile::remove(temporary.filePath("queries.jsonl"));}
+    void helpGuideWorksOfflineAndPreservesReplay(){
+        Window window;window.show();window.activateWindow();
+        QVERIFY(QTest::qWaitForWindowActive(&window));
+        QTest::keyClick(&window,Qt::Key_F1);
+        QTRY_VERIFY(window.helpGuide&&window.helpGuide->isVisible());
+        auto *guide=window.helpGuide.data();
+        auto *search=guide->findChild<QLineEdit*>("helpSearch");
+        auto *topics=guide->findChild<QListWidget*>("helpTopics");
+        auto *description=guide->findChild<QTextBrowser*>("helpDescription");
+        QVERIFY(search&&topics&&description);QVERIFY(queries().isEmpty());
+        QTest::keyClicks(search,"EPISODE");
+        QVERIFY(topics->currentItem()->text().startsWith("Episode /"));
+        search->setText("  derived   cache  ");
+        QVERIFY(topics->currentItem()->text().startsWith("Cache /"));
+        search->setText("zz_no_such_glossary_term_zz");
+        for(int i=0;i<topics->count();++i)QVERIFY(topics->item(i)->isHidden());
+        QVERIFY(description->toPlainText().contains("No matching terms"));
+        search->clear();QVERIFY(!topics->item(0)->isHidden());
+        topics->setFocus();QTest::keyClick(topics,Qt::Key_Down);
+        QCOMPARE(topics->currentRow(),1);QVERIFY(!description->toPlainText().isEmpty());
+        QTest::keyClick(guide,Qt::Key_Escape);QVERIFY(!guide->isVisible());
+        QCOMPARE(window.showHelp(),guide);QVERIFY(guide->isVisible());guide->close();
+        // Opening help over loaded data must not refresh or reset the replay.
+        open(window);QTRY_COMPARE_WITH_TIMEOUT(window.events.model->total,800,10000);
+        QTest::mouseClick(window.events.next,Qt::LeftButton);
+        QTRY_COMPARE_WITH_TIMEOUT(window.events.model->offset,250,5000);
+        const auto before=queries().size();const auto request=window.queryRequest("events");
+        window.showHelp();search->setText("unknown ownership");guide->close();
+        QCOMPARE(window.queryRequest("events"),request);
+        QCOMPARE(window.events.model->offset,250);QCOMPARE(queries().size(),before);
+    }
     void pythonCandidatesSkipStoreAndRejectOldVersions(){
         PythonRuntime resolver;QString found,error;
         const auto self=QCoreApplication::applicationFilePath();

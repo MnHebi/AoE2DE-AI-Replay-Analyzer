@@ -33,6 +33,10 @@ in Backend settings. Python 2 is not supported. No Python GUI libraries are used
 
 ## Use
 
+- Open **Help → Terms and guide** or press **F1** for a searchable glossary
+  of views, episodes, diagnostics, evidence labels, IDs, filters and metadata.
+  It works offline before opening a replay, including without Python installed.
+  You can keep it open beside the replay; it does not change filters or pages.
 - Check players in the sidebar. Slot, selected color, team, civilization and
   human/computer designation come from the header, with unknowns retained.
 - Filter events by action, category, evidence status, actors, targets, type ID,

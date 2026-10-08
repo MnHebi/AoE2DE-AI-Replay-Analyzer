@@ -1,4 +1,5 @@
 #include "window.h"
+#include "helpdialog.h"
 #include <QApplication>
 #include <QClipboard>
 #include <QDialog>
@@ -70,6 +71,7 @@ Window::Window() {
         if(comparisonOverview.isEmpty())return;QDialog d(this);d.setWindowTitle("Reference replay metadata");d.resize(760,600);auto *l=new QVBoxLayout(&d);auto *text=new QPlainTextEdit;text->setReadOnly(true);text->setPlainText(jsonText(comparisonOverview));l->addWidget(text);auto *b=new QDialogButtonBox(QDialogButtonBox::Close);l->addWidget(b);connect(b,&QDialogButtonBox::rejected,&d,&QDialog::reject);d.exec();
     });
     auto *help=menuBar()->addMenu("&Help");
+    connect(help->addAction("Terms and guide…",QKeySequence(Qt::Key_F1)),&QAction::triggered,this,[this]{showHelp();});
     connect(help->addAction("Evidence and limitations"),&QAction::triggered,this,[this]{QMessageBox::information(this,"Evidence levels",
         "Observed: decoded replay data.\nInferred: grouping or interpretation of observations.\nUnresolved: evidence does not establish an outcome.\nUnavailable: information is not exposed.\n\nRequests do not prove execution. Command gaps do not prove idle units. Profiles supply optional labels; raw observations remain unchanged.");});
 
@@ -126,6 +128,12 @@ Window::Window() {
     for(auto *spin:{from,to})connect(spin,&QSpinBox::valueChanged,this,changed);
     connect(timeFilter,&QCheckBox::toggled,this,changed);connect(unknown,&QCheckBox::toggled,this,changed);connect(players,&QListWidget::itemChanged,this,changed);
     connect(tabs,&QTabWidget::currentChanged,this,[this]{if(!loading)refresh();});
+}
+
+HelpDialog *Window::showHelp(){
+    if(!helpGuide)helpGuide=new HelpDialog(this);
+    helpGuide->show();helpGuide->raise();helpGuide->activateWindow();
+    return helpGuide;
 }
 
 TablePane Window::makeTable(const QString &view){

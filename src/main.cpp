@@ -1,4 +1,5 @@
 #include "window.h"
+#include "helpdialog.h"
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QFile>
@@ -19,11 +20,14 @@ int main(int argc,char **argv){
 #endif
     QCommandLineParser parser;parser.setApplicationDescription("Native AoE2 DE replay analysis using the established mgz decoder");parser.addHelpOption();
     parser.addOption({"smoke-test","Construct and render the native GUI, then exit."});
+    parser.addOption({"guide","Open the terms and guide."});
     parser.addOption({"database","Open a versioned replay index.","path"});
     parser.addOption({"screenshot","Save the smoke-test window to a PNG.","path"});
     parser.addOption({"cache-dir","Use this directory for derived replay indices.","path"});
     parser.addPositionalArgument("replay","Optional .aoe2record file");parser.process(app);
     Window window;window.show();window.screenshot=parser.value("screenshot");
+    QWidget *smokeWindow=&window;
+    if(parser.isSet("guide"))smokeWindow=window.showHelp();
     if(parser.isSet("cache-dir"))window.setCacheDirectory(parser.value("cache-dir"));
     if(parser.isSet("smoke-test")){
         QTimer::singleShot(30000,&app,[&app]{app.exit(2);});
@@ -31,7 +35,7 @@ int main(int argc,char **argv){
             window.smokeComplete=[&app](bool ok,QString result){QTextStream(stdout)<<result<<Qt::endl;QTimer::singleShot(0,&app,[&app,ok]{app.exit(ok?0:1);});};
             if(parser.isSet("database"))window.loadDatabase(parser.value("database"));
             else window.openReplay(parser.positionalArguments().first());
-        }else QTimer::singleShot(100,&app,[&]{bool ok=window.isVisible();if(!window.screenshot.isEmpty())ok=window.grab().save(window.screenshot)&&ok;app.exit(ok?0:1);});
+        }else QTimer::singleShot(100,&app,[&]{bool ok=smokeWindow->isVisible();if(!window.screenshot.isEmpty())ok=smokeWindow->grab().save(window.screenshot)&&ok;app.exit(ok?0:1);});
     }else if(parser.isSet("database"))window.loadDatabase(parser.value("database"));
     else if(!parser.positionalArguments().isEmpty())window.openReplay(parser.positionalArguments().first());
     return app.exec();

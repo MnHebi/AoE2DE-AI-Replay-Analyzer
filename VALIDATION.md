@@ -149,3 +149,37 @@ fixtures now use the ignored build directory. The original `dist/` was locked,
 so installation uses a separate stage. These checks establish the tested GUI
 paths and package behavior; they do not establish gameplay outcomes, Linux
 execution or real vanilla/default-AI coverage. Python 3.12+ remains external.
+
+## Terms and guide — v0.1.2, 2026-10-08
+
+- Windows Release build passed. Existing `QWidget::data` shadowing warnings
+  remain in window.cpp; no new help-source warning was reported.
+- CTest passed all three targets: `native-regressions`, `native-smoke` and
+  `native-help-smoke`. Eight native regression cases now include F1 access
+  before loading data, case-insensitive title/description search, multiple
+  search words, an empty result, keyboard topic navigation, Escape and reopening
+  the same window. Opening/searching help over a loaded fixture preserved the
+  current filters and page and emitted no additional backend query.
+- The 67 compiled topics were checked against the current adapter/contract,
+  including the distinction between an episode's neighboring gaps of at most
+  10 seconds and a repeated-command diagnostic's entire span of at most 10
+  seconds. Gap evidence endpoints and exact episode membership are explained
+  separately, along with unresolved outcomes and unavailable simulation state.
+- Fresh installation rendered the help window with PATH limited to system
+  directories and Python/backend overrides pointing to nonexistent paths. Its
+  saved start-page image was visually inspected for legibility, layout, topic
+  navigation and search controls. Help performs no decoding.
+- The installed EXE also passed native paging, player selection, exact evidence
+  and timeline navigation checks on the 23-event replay and existing
+  834,607-event index, with Python/backend overrides unset and SDK paths absent.
+  The small replay's indexed records still match v0.1.0 exactly. The large index
+  was reused, not rebuilt.
+- Bundled backend bytes and GPLv3 license match the sources. The executable has
+  no current or original development path. Parser/helper roots resolve within
+  the installed package. The pipeline remains
+  `d5755213a944e52e46ed67cc6008da88396d42622ce975487f93e769c1bb35ab`.
+
+Local evidence is under ignored `validation/release-v0.1.2/`. These checks cover
+the new help and existing tested native paths. Replay-format, gameplay-outcome,
+Linux and real vanilla/default-AI coverage limits remain unchanged; replay
+analysis still requires external Python 3.12+.

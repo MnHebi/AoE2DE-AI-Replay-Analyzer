@@ -16,7 +16,10 @@
 #include <QTabWidget>
 #include <QLabel>
 #include <QTimer>
+#include <QPointer>
 #include <optional>
+
+class HelpDialog;
 
 struct TablePane {
     QWidget *widget=nullptr;
@@ -32,6 +35,7 @@ public:
     void openReplay(const QString &path, bool comparison=false);
     void loadDatabase(const QString &path);
     void setCacheDirectory(const QString &path);
+    HelpDialog *showHelp();
     // Integration harness runs the same asynchronous UI path as an interactive load.
     std::function<void(bool,QString)> smokeComplete;
     QString screenshot;
@@ -57,6 +61,7 @@ private:
     TablePane events, episodes, diagnostics;
     QTimer debounce;
     QMenu *recentMenu;
+    QPointer<HelpDialog> helpGuide;
     bool loading=false;
     bool smokeEvents=false, smokeEpisodes=false, smokeDiagnostics=false, smokeTimeline=false;
     bool smokeStats=false;

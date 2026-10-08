@@ -55,3 +55,18 @@ so unrelated local edits are excluded. Local release evidence remains ignored.
 The v0.1.1 ZIP passed integrity, all 169 payload hashes, all 146 committed-source
 byte comparisons and both extracted-EXE smoke checks. Publish its companion
 `SHA256SUMS.txt` with the ZIP; neither generated asset belongs in source control.
+
+Release v0.1.2 adds Help > Terms and guide (F1), a modeless searchable glossary
+with 67 topics. It explains views, episodes and diagnostic thresholds, evidence
+levels, IDs, command categories, filters, comparison context, metadata and cache
+behavior. Definitions are compiled into the EXE and require neither Python nor
+a loaded replay. Search matches titles and descriptions, prioritizes matching
+titles, and reports no matches clearly. The window can remain open beside the
+replay without changing its selection or page. `--guide` also opens it directly.
+
+Release build and all three CTest targets passed, including eight regression
+cases and a standalone help render. Installed checks rendered help with missing
+Python/backend overrides, then exercised the small replay and existing large
+index with SDK paths absent. Backend bytes and the v0.1.1 pipeline fingerprint
+are unchanged. See VALIDATION.md; local evidence and the fresh install stage are
+under ignored `validation/release-v0.1.2/` and `build/release-v0.1.2-install/`.
