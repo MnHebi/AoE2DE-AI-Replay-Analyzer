@@ -77,3 +77,33 @@ new migration logs, a rendered GUI image and results are under
 `validation/migration-checks/`. These local artifacts, Qt SDK and generated
 packages are excluded from Git. Earlier large-replay measurements above remain
 measurements of the original decoding run.
+
+## Windows release v0.1.0 — 2026-10-08
+
+- `cmake --build build --config Release` passed with MSVC and the configured
+  Qt 6.8.3 SDK. The Windows SDK registry requires a build outside the restricted
+  sandbox; the initial restricted attempt failed before compiling.
+- Python 3.12.14 ran `-m unittest discover -s tests -p test_adapter.py -v`:
+  all eight backend contract tests passed. `ctest --test-dir build -C Release
+  --output-on-failure` passed its native smoke test.
+- Installed into a fresh `dist/` directory. With PATH limited to Windows system
+  directories and Python selected explicitly, the installed executable decoded
+  the 23-event replay into a new local cache, then opened the existing
+  834,607-event index. Both native smoke tests passed their applicable paging,
+  player filtering and exact episode evidence checks and saved screenshots.
+- Every bundled backend file matches its repository source bytes, the installed
+  GPLv3 license matches exactly, and the decoder pipeline remains
+  `b74c0a41cbc2380800af91f156231a156a803c13f94cd27c70d138e35f1752cc`.
+- ZIP integrity and all 165 payload SHA-256 hashes in `CERTIFICATION.json`
+  passed. All 142 tracked source files match the archive byte-for-byte. Its
+  membership contains only those sources, the installed runtime files and the
+  certification manifest; no replays, caches or local evidence are included.
+- The executable extracted from the ZIP passed both native smoke checks with
+  SDK directories absent from PATH. Its new small-replay cache confirms parser
+  and helper roots inside the extracted package. `SHA256SUMS.txt` records the
+  complete ZIP hash for release download verification.
+
+Local release evidence is under ignored `validation/release-v0.1.0/`. Replays,
+indices and screenshots are excluded from release payloads. Python is not
+bundled; these checks used an explicit Python 3.12.14 installation. They do not
+extend the previously stated replay-format, vanilla/default-AI or Linux coverage.

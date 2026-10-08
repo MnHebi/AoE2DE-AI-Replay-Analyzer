@@ -19,3 +19,16 @@ Generated artifacts stay ignored: `build*/`, `dist/`, the Windows release ZIP,
 `.tools/` and `validation/`. The local Qt SDK is under `.tools/qt-sdk`; callers
 can use any compatible Qt 6 installation. Local migration evidence is under
 `validation/`. Usage, build commands and Python configuration are in `README.md`.
+
+Release v0.1.0 packages Windows x64 in `AoE2ReplayAnalysis-Windows-x64.zip`,
+with Qt/compiler runtimes, the unchanged decoder/helpers, rebuildable sources,
+license notices and a per-file `CERTIFICATION.json`. Python 3.12+ is an external
+requirement. GitHub release assets include `SHA256SUMS.txt`; generated archives
+and local release evidence under `validation/release-v0.1.0/` remain ignored.
+Release build, eight backend tests, CTest and installed native checks passed;
+the installed checks decoded the 23-event replay and opened the 834,607-event
+index with Qt SDK directories absent from PATH. Existing format/runtime limits
+still apply. Use `tests/package_release.py` after a fresh Release installation
+to produce the ZIP. Archive integrity, per-file SHA-256 hashes and source byte
+equality passed; the extracted executable also passed both native checks and
+resolved its decoder/helpers within the extracted package.

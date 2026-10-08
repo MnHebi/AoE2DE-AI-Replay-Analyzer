@@ -7,6 +7,13 @@ without an AI installation, game-data payload or civilization/unit assumptions.
 
 ## Run on Windows
 
+Download `AoE2ReplayAnalysis-Windows-x64.zip` from the
+[latest GitHub release](https://github.com/MnHebi/AoE2DE-AI-Replay-Analyzer/releases/latest)
+and extract it completely before opening `replay-analysis.exe`. The ZIP includes
+Qt and compiler runtimes, the decoder, rebuildable sources and license notices.
+Install Python 3.12+ separately; Python is not included. Release assets also
+include `SHA256SUMS.txt` for checking the download.
+
 Run `launch.ps1`, or open `dist/replay-analysis.exe` in the development folder.
 In the release ZIP, the executable and launcher are together at the archive root.
 Choose **File → Backend settings** and select a Python 3.12+ executable if one
