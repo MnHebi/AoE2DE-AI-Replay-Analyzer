@@ -24,7 +24,12 @@ are stored in the per-user application cache, never in the AI source checkout.
 
 The supplied `launch.ps1` uses the configured `AOE2_PYTHON` executable, a bundled
 Codex Python 3 runtime when available, or an explicitly supplied `-Python` path.
-Python 2 is not supported. No Python GUI libraries are used.
+The EXE also discovers Python directly: it validates the configured executable,
+PATH candidates, the Windows Python launcher and common installation locations,
+including an existing Codex runtime when available. Probes run asynchronously
+and require working Python 3.12+ with SQLite. Windows Store shortcuts and older
+interpreters are skipped. If discovery fails, select an installed interpreter
+in Backend settings. Python 2 is not supported. No Python GUI libraries are used.
 
 ## Use
 
@@ -33,11 +38,17 @@ Python 2 is not supported. No Python GUI libraries are used.
 - Filter events by action, category, evidence status, actors, targets, type ID,
   literal text and time range. Requests are named as requests. Time is in replay
   game milliseconds; the range controls use seconds.
-- The activity chart uses the same event filters. Click a bin to open a window
-  in the Event explorer. Adjust the window length or enter exact range bounds.
+- The activity chart uses the current player and event filters, while retaining
+  the full time span as navigation context. Click a bin to open a time window
+  around it in the Event explorer, on a page containing the nearest recorded
+  event. The selected window is highlighted on the chart. Adjust the window
+  length or enter exact range bounds.
 - Tables request 250 rows at a time. Previous/Next change the page. Select a row
   to inspect its full decoded fields, packet bytes where captured, and source
-  replay offset. Copy handles all selected rows in the current page.
+  replay offset. Switching tabs preserves each page. Changed filters refresh
+  the visible view; other views update when opened. Copy handles all selected
+  rows in the current page. Invalid numeric IDs are outlined in red and pause
+  queries and exports until corrected or cleared.
 - Episodes group consecutive identical per-actor commands with at most 10 s
   between them. Their grouping is inferred and execution outcome unresolved.
   Double-click episodes or diagnostics to see exact supporting events.
@@ -49,7 +60,11 @@ Python 2 is not supported. No Python GUI libraries are used.
   unavailable. Comparisons honor the active event filters.
 - **Open comparison replay** adds a reference replay to Compare. Its unfiltered
   counts, duration and settings are identified separately. The context row
-  flags differences. No aggregate score or claim of better AI is computed.
+  reports available map indicators, versions, game mode, settings fields and
+  duration as matching, different or unavailable. Matching map IDs do not prove
+  identical maps. Unknown ownership stays separate from player 0, and labels
+  belong to the replay hash rather than its display filename. No aggregate
+  score or claim of better AI is computed.
 - Load optional JSON profile / game-data names under Sources. The format is
   illustrated in `profiles/example.json`; numeric string keys map to labels.
   Unit, building, technology and civilization namespaces remain separate.
@@ -67,6 +82,10 @@ Requires CMake 3.21+, a C++20 compiler, Qt 6.5+ Widgets, and Python 3.12+ for
 analysis. Qt Charts is unnecessary: a small QPainter histogram provides the
 needed timeline without an additional module. SQLite is in Python's standard
 library and supports bounded-memory indexing and asynchronous paged querying.
+With `BUILD_TESTING` enabled, the build also needs Qt Test and a Python 3.12+
+interpreter discoverable by CMake (or supplied through `Python3_EXECUTABLE`).
+Development executables can set `AOE2_BACKEND_ROOT` to the source directory;
+installed executables use their adjacent backend without a compiled source path.
 
 Cache location is configurable in Backend settings or with `--cache-dir PATH`.
 The original cache-build filename/path and the currently opened replay path are

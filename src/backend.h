@@ -4,6 +4,7 @@
 #include <QJsonObject>
 #include <QHash>
 #include <functional>
+#include "pythonruntime.h"
 
 class Backend : public QObject {
 public:
@@ -17,9 +18,12 @@ public:
     void exportData(const QString &database, const QString &path, const QString &format,
                     const QJsonObject &request, Reply done, std::function<void(QString)> error);
     void cancelBuild();
+    void cancelQuery(const QString &channel);
     bool building() const;
 private:
+    PythonRuntime runtime;
     QProcess *buildProcess = nullptr;
     QHash<QString,QProcess*> queries;
     QProcess *launch(const QStringList &args);
+    void start(QProcess *process, std::function<bool()> active, std::function<void(QString)> error);
 };

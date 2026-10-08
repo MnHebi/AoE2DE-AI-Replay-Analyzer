@@ -77,6 +77,22 @@ class ContractTests(unittest.TestCase):
         timeline=adapter.query(self.db,{"view":"timeline"})
         self.assertEqual(sum(r["count"] for r in timeline["bins"]),16)
 
+    def test_time_anchor_uses_filtered_bounded_page(self):
+        for i in range(1000):
+            adapter.append_event(self.db, dict(action="MOVE", player_id=7, object_ids=[500],
+                milliseconds=100000+i*1000, sequence=100+i, offset=1000+i))
+        request = {"view": "events", "filters": {"players": [7], "from_ms": 100000},
+                   "anchor_ms": 850000, "limit": 250}
+        page = adapter.query(self.db, request)
+        self.assertEqual((page["total"], page["offset"], len(page["rows"])), (1000, 625, 250))
+        self.assertEqual(page["rows"][125]["time_ms"], 850000)
+        request["anchor_ms"] = 2000000
+        page = adapter.query(self.db, request)
+        self.assertEqual((page["offset"], len(page["rows"])), (750, 250))
+        request["filters"]["players"] = []
+        page = adapter.query(self.db, request)
+        self.assertEqual((page["offset"], page["total"], page["rows"]), (0, 0, []))
+
     def test_exports_all_filtered_rows_and_selection_provenance(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).parents[1]) as temp:
             path=Path(temp)/"filtered.json"

@@ -16,6 +16,7 @@
 #include <QTabWidget>
 #include <QLabel>
 #include <QTimer>
+#include <optional>
 
 struct TablePane {
     QWidget *widget=nullptr;
@@ -35,9 +36,12 @@ public:
     std::function<void(bool,QString)> smokeComplete;
     QString screenshot;
 private:
+    friend class NativeTests;
     Backend backend;
     QString database, comparisonDatabase, replayPath;
     QJsonObject overview, comparisonOverview, profile, labels, evidenceFilter;
+    QHash<QString,QJsonObject> lastRequests;
+    std::optional<qint64> navigationTime;
     QListWidget *players;
     QComboBox *action, *category, *status;
     QLineEdit *search, *actor, *target, *type;
@@ -64,10 +68,13 @@ private:
     void applyOverview(const QJsonObject &data);
     void renderOverview();
     void refresh();
-    void refreshPage(TablePane &pane, int offset=0);
+    void refreshPage(TablePane &pane, int offset=-1, std::optional<qint64> anchor={});
     void pageReceived(TablePane &pane, const QJsonObject &data);
     QJsonObject filters(bool eventFields) const;
     QJsonObject request(const QString &view) const;
+    QJsonObject queryRequest(const QString &view) const;
+    bool validateFilters();
+    void navigateTimeline(qint64 at);
     TablePane makeTable(const QString &view);
     void inspect(TablePane &pane);
     void evidence(TablePane &pane);

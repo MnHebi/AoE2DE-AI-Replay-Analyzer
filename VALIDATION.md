@@ -107,3 +107,40 @@ Local release evidence is under ignored `validation/release-v0.1.0/`. Replays,
 indices and screenshots are excluded from release payloads. Python is not
 bundled; these checks used an explicit Python 3.12.14 installation. They do not
 extend the previously stated replay-format, vanilla/default-AI or Linux coverage.
+
+## Launch, navigation and review fixes — v0.1.1, 2026-10-08
+
+- Windows Release build passed. All nine backend contract tests passed, including
+  a dense, filtered `anchor_ms` page with exact centering, end clamping and an
+  empty selection. Decoding and the SQLite schema remain unchanged.
+- CTest passed `native-regressions` and `native-smoke`. Seven native cases cover
+  rejecting Store/old-runtime candidates and actionable missing-Python errors;
+  direct EXE discovery without an override; page 3 retained across tabs with only
+  visible queries logged; a real chart click near 80% of an 800-event fixture
+  selecting the nearest time on a bounded page while retaining chart context;
+  invalid/overflow numeric filters blocking queries; and distinct unknown/zero
+  owners, same-filename label isolation and unavailable/different context fields.
+- Installed into a fresh staging directory with SDK directories absent from
+  PATH and `AOE2_PYTHON`/`AOE2_BACKEND_ROOT` unset. The installed executable
+  discovered Python and decoded the 23-event replay. Its indexed players, events,
+  actor membership, episodes, evidence membership and diagnostics match v0.1.0
+  exactly. It also opened the existing 834,607-event index. Both smoke checks
+  exercise paging, player selection, exact evidence and an actual timeline
+  mouse event, validate the returned time window and nearest selected event,
+  and save a rendered screenshot. The large index was reused, not rebuilt.
+- Bundled backend bytes match their sources and the installed GPLv3 license
+  matches exactly. UTF-8 and UTF-16 binary scans find no current development
+  directory or original AI project directory. Backend roots resolve within the
+  installed package, with no development-path fallback.
+- New pipeline SHA-256:
+  `d5755213a944e52e46ed67cc6008da88396d42622ce975487f93e769c1bb35ab`.
+  The change comes from the adapter's additive navigation query; vendor parser
+  and helper bytes are unchanged. Older indices retain their original pipeline
+  hashes, and fresh builds use the new cache identity.
+
+Local evidence is under ignored `validation/release-v0.1.1/`. The first native
+test attempt could not create SQLite data in the default temporary location;
+fixtures now use the ignored build directory. The original `dist/` was locked,
+so installation uses a separate stage. These checks establish the tested GUI
+paths and package behavior; they do not establish gameplay outcomes, Linux
+execution or real vanilla/default-AI coverage. Python 3.12+ remains external.

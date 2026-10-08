@@ -5,16 +5,15 @@
 #include <QJsonDocument>
 #include <QStandardPaths>
 #include <QSettings>
+#include <QPointer>
 #include <memory>
 
 Backend::Backend(QObject *parent) : QObject(parent) {
-    auto base = QCoreApplication::applicationDirPath();
-    if (!QFileInfo::exists(base + "/backend/adapter.py")) base = QStringLiteral(REPLAY_SOURCE_DIR);
+    const auto base = qEnvironmentVariable("AOE2_BACKEND_ROOT",QCoreApplication::applicationDirPath());
     adapter = base + "/backend/adapter.py";
     QSettings s;
     python = qEnvironmentVariable("AOE2_PYTHON");
     if(python.isEmpty())python=s.value("python").toString();
-    if (python.isEmpty()) python = QStandardPaths::findExecutable("python3");
     parserRoot = s.value("parserRoot", base + "/backend/vendor").toString();
     toolsRoot = s.value("toolsRoot", base + "/backend/vendor_helpers").toString();
     cacheDir = s.value("cacheDir",QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).toString();
@@ -23,10 +22,25 @@ Backend::Backend(QObject *parent) : QObject(parent) {
 
 QProcess *Backend::launch(const QStringList &args) {
     auto *p = new QProcess(this);
-    p->setProgram(python);
     p->setArguments(QStringList{adapter} + args);
     p->setProcessChannelMode(QProcess::SeparateChannels);
     return p;
+}
+
+void Backend::start(QProcess *process,std::function<bool()> active,std::function<void(QString)> error){
+    if(!QFileInfo::exists(adapter)){
+        error("The backend adapter is missing. Extract the complete release ZIP beside the executable. "
+              "Development builds can set AOE2_BACKEND_ROOT to the source directory.");
+        process->deleteLater();return;
+    }
+    const QPointer<QProcess> guarded(process);
+    runtime.resolve(python,[this,guarded,active](QString executable){
+        if(!guarded||!active())return;
+        python=executable;guarded->setProgram(executable);guarded->start();
+    },[guarded,active,error](QString message){
+        if(!guarded||!active())return;
+        error(message);guarded->deleteLater();
+    });
 }
 
 void Backend::build(const QString &path, Reply ready, std::function<void(QString,int)> progress,
@@ -67,14 +81,14 @@ void Backend::build(const QString &path, Reply ready, std::function<void(QString
         }
         p->deleteLater();
     });
-    p->start();
+    start(p,[this,p]{return buildProcess==p;},[this,error,progress](QString message){
+        buildProcess=nullptr;progress("Stopped",0);error(message);
+    });
 }
 
 void Backend::query(const QString &database, const QJsonObject &request, const QString &channel,
                     Reply done, std::function<void(QString)> error) {
-    if (queries.contains(channel)) {
-        auto old = queries.take(channel); old->disconnect(this); old->kill(); old->deleteLater();
-    }
+    cancelQuery(channel);
     auto *p = launch({"query",database,"--request",QString::fromUtf8(QJsonDocument(request).toJson(QJsonDocument::Compact))});
     queries[channel] = p;
     auto output = std::make_shared<QByteArray>();
@@ -92,7 +106,7 @@ void Backend::query(const QString &database, const QJsonObject &request, const Q
         else error(document.object().value("message").toString(QString::fromUtf8(p->readAllStandardError())));
         p->deleteLater();
     });
-    p->start();
+    start(p,[this,p,channel]{return queries.value(channel)==p;},[this,error,channel](QString message){queries.remove(channel);error(message);});
 }
 
 void Backend::exportData(const QString &database, const QString &path, const QString &format,
@@ -104,10 +118,14 @@ void Backend::exportData(const QString &database, const QString &path, const QSt
         if (code == 0) done(obj); else error(obj.value("message").toString(QString::fromUtf8(p->readAllStandardError())));
         p->deleteLater();
     });
-    p->start();
+    start(p,[]{return true;},error);
 }
 
 void Backend::cancelBuild() {
-    if (buildProcess) { auto *p=buildProcess; buildProcess=nullptr; p->kill(); }
+    if (buildProcess) { auto *p=buildProcess; buildProcess=nullptr; p->kill();p->deleteLater(); }
 }
 bool Backend::building() const { return buildProcess != nullptr; }
+
+void Backend::cancelQuery(const QString &channel){
+    if(auto *process=queries.take(channel)){process->disconnect(this);process->kill();process->deleteLater();}
+}

@@ -32,3 +32,23 @@ still apply. Use `tests/package_release.py` after a fresh Release installation
 to produce the ZIP. Archive integrity, per-file SHA-256 hashes and source byte
 equality passed; the extracted executable also passed both native checks and
 resolved its decoder/helpers within the extracted package.
+
+Release v0.1.1 fixes direct EXE Python discovery and timeline navigation, plus
+the v0.1.0 review findings. Python candidates are version-probed asynchronously;
+Store aliases and old runtimes are rejected. Timeline clicks use a bounded
+`anchor_ms` events request, keep the chart context and select the nearest event.
+Views load on demand, preserve pages across tabs and reuse identical requests.
+Comparison labels use replay hashes, owner 0 is distinct from missing ownership,
+context fields retain unavailable states, and invalid numeric filters block
+queries/exports visibly. The native executable no longer embeds a source fallback.
+
+Nine backend tests and seven native regression cases cover these changes, in
+addition to the GUI construction test and installed real-replay smoke checks.
+The adapter query extension changes the pipeline fingerprint to
+`d5755213a944e52e46ed67cc6008da88396d42622ce975487f93e769c1bb35ab`;
+bundled decoder/helper bytes remain unchanged. Existing indices keep their
+original provenance. See the v0.1.1 section in `VALIDATION.md` for check limits.
+The release stage is under ignored `build/release-v0.1.1-install/` because the
+existing local `dist/` was locked. The packager accepts `--dist PATH` and bundles
+source bytes from the committed revision, recorded in `CERTIFICATION.json`,
+so unrelated local edits are excluded. Local release evidence remains ignored.

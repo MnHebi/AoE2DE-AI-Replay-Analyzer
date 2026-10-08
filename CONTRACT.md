@@ -20,6 +20,11 @@ array includes no known owner. Episode/diagnostic filters use players, overlappi
 time range and status. Event-specific filters do not alter episode reconstruction.
 SQL values are bound parameters; search escapes LIKE wildcards.
 
+An events request may include `anchor_ms` outside `filters`. The backend returns
+a bounded page around that replay time within the requested filters and reports
+its actual `offset`. Subsequent pages use ordinary offsets. No event timestamps
+or evidence membership are changed by navigation.
+
 SQLite is the indexed representation. Guaranteed tables:
 
 | Table | Contents |

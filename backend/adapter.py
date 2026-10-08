@@ -424,6 +424,12 @@ def query(db, request):
     total = db.execute(f"SELECT count(*) FROM {view}" + w, params).fetchone()[0]
     limit = max(1, min(int(request.get("limit", 250)), 500))
     offset = max(0, int(request.get("offset", 0)))
+    if view == "events" and request.get("anchor_ms") is not None:
+        # Find a bounded page around the requested time within the same filters.
+        anchor_where = w + (" AND " if w else " WHERE ") + "time_ms<?"
+        before = db.execute("SELECT count(*) FROM events" + anchor_where,
+                            params + [int(request["anchor_ms"])]).fetchone()[0]
+        offset = max(0, min(before - limit // 2, total - limit))
     order = "time_ms,id" if view == "events" else "start_ms,id"
     rows = [dict(r) for r in db.execute(f"SELECT * FROM {view}" + w + f" ORDER BY {order} LIMIT ? OFFSET ?", params + [limit, offset])]
     for row in rows:

@@ -11,6 +11,7 @@
 #include <QJsonDocument>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QSettings>
 #include <QShortcut>
 #include <QSplitter>
@@ -18,12 +19,35 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFileInfo>
+#include <QValidator>
 #include <algorithm>
+#include <map>
+#include <limits>
 
 namespace {
 QString jsonText(const QJsonObject &obj){return QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Indented));}
 QString display(const QJsonValue &v){return v.isNull()||v.isUndefined()?"Unavailable":v.toVariant().toString();}
 QPushButton *button(const QString &text,QLayout *layout){auto *b=new QPushButton(text);layout->addWidget(b);return b;}
+class IdValidator : public QValidator {
+public:
+    using QValidator::QValidator;
+    State validate(QString &input,int &)const override{
+        if(input.isEmpty())return Acceptable;
+        bool valid=false;input.toLongLong(&valid);
+        // Keep incomplete/invalid input visible so its error can be explained.
+        return valid?Acceptable:Intermediate;
+    }
+};
+using Owner=std::optional<qint64>;
+Owner owner(const QJsonValue &value){return value.isNull()||value.isUndefined()?Owner{}:Owner{value.toInteger()};}
+QString ownerText(const Owner &id){return id?"Player "+QString::number(*id):"Unknown ownership";}
+QString comparisonState(const QJsonValue &a,const QJsonValue &b){
+    if(a.isNull()||a.isUndefined()||b.isNull()||b.isUndefined()||
+       (a.isString()&&a.toString().isEmpty())||(b.isString()&&b.toString().isEmpty()))return "unavailable";
+    if((a.isObject()&&a.toObject().isEmpty())||(b.isObject()&&b.toObject().isEmpty())||
+       (a.isArray()&&a.toArray().isEmpty())||(b.isArray()&&b.toArray().isEmpty()))return "unavailable";
+    return a==b?"match":"different";
+}
 }
 
 Window::Window() {
@@ -68,11 +92,14 @@ Window::Window() {
     actor=new QLineEdit;actor->setPlaceholderText("Actor ID");idRow->addWidget(actor);
     target=new QLineEdit;target->setPlaceholderText("Target ID");idRow->addWidget(target);
     type=new QLineEdit;type->setPlaceholderText("Unit/building/tech type ID");idRow->addWidget(type);
-    for(auto *edit:{actor,target,type})edit->setMaximumWidth(150);
+    for(auto *edit:{actor,target,type}){
+        edit->setMaximumWidth(150);edit->setValidator(new IdValidator(edit));
+        edit->setToolTip("Enter a numeric ID, or leave empty to include all IDs.");
+    }
     auto *clear=button("Reset filters",idRow);
     timeFilter=new QCheckBox("Time range (seconds)");idRow->addWidget(timeFilter);
     from=new QSpinBox;to=new QSpinBox;from->setRange(0,100000000);to->setRange(0,100000000);from->setMaximumWidth(100);to->setMaximumWidth(100);idRow->addWidget(from);idRow->addWidget(to);
-    connect(clear,&QPushButton::clicked,this,[this]{loading=true;search->clear();actor->clear();target->clear();type->clear();action->setCurrentIndex(0);category->setCurrentIndex(0);status->setCurrentIndex(0);timeFilter->setChecked(false);evidenceFilter={};loading=false;refresh();});
+    connect(clear,&QPushButton::clicked,this,[this]{loading=true;search->clear();actor->clear();target->clear();type->clear();action->setCurrentIndex(0);category->setCurrentIndex(0);status->setCurrentIndex(0);timeFilter->setChecked(false);evidenceFilter={};navigationTime.reset();loading=false;refresh();});
 
     tabs=new QTabWidget;rightLayout->addWidget(tabs,3);
     summary=new QPlainTextEdit;summary->setReadOnly(true);summary->setPlainText("Open a Definitive Edition replay.\n\nThe native interface uses the existing Python decoder and a versioned SQLite index.\nOnly decoded fields are shown; missing simulation state remains unavailable.");tabs->addTab(summary,"Overview");
@@ -82,7 +109,7 @@ Window::Window() {
     timeControls->addWidget(new QLabel("Window length (s)"));zoom=new QSpinBox;zoom->setRange(1,36000);zoom->setValue(60);timeControls->addWidget(zoom);
     timeline=new Timeline;timeLayout->addWidget(timeline,1);
     timeLayout->addWidget(new QLabel("Counts describe recorded activity. Zoom with the time-range controls; findings link to their supporting events."));
-    timeline->navigate=[this](qint64 at){loading=true;to->setValue(int((at+zoom->value()*500)/1000));from->setValue(int(std::max(qint64(0),at-zoom->value()*500)/1000));timeFilter->setChecked(true);evidenceFilter={};loading=false;timeLabel->setText(EventModel::timestamp(at));tabs->setCurrentWidget(events.widget);refresh();};
+    timeline->navigate=[this](qint64 at){navigateTimeline(at);};
     tabs->addTab(timePage,"Timeline");
     events=makeTable("events");tabs->addTab(events.widget,"Event explorer");
     analysis=new QPlainTextEdit;analysis->setReadOnly(true);tabs->addTab(analysis,"Player analysis");
@@ -93,7 +120,7 @@ Window::Window() {
     auto *progressRow=new QHBoxLayout;rightLayout->addLayout(progressRow);progress=new QProgressBar;progress->setRange(0,100);progressRow->addWidget(progress,1);cancel=button("Cancel loading",progressRow);cancel->setEnabled(false);
     connect(cancel,&QPushButton::clicked,this,[this]{backend.cancelBuild();cancel->setEnabled(false);progress->setValue(0);statusBar()->showMessage("Loading cancelled. The previously loaded replay remains available.");});
     debounce.setSingleShot(true);debounce.setInterval(220);connect(&debounce,&QTimer::timeout,this,&Window::refresh);
-    auto changed=[this]{if(!loading){evidenceFilter={};debounce.start();}};
+    auto changed=[this]{if(!loading){evidenceFilter={};navigationTime.reset();validateFilters();debounce.start();}};
     for(auto *edit:{search,actor,target,type})connect(edit,&QLineEdit::textChanged,this,changed);
     for(auto *combo:{action,category,status})connect(combo,&QComboBox::currentIndexChanged,this,changed);
     for(auto *spin:{from,to})connect(spin,&QSpinBox::valueChanged,this,changed);
@@ -138,7 +165,6 @@ void Window::recentFiles(){
 }
 
 void Window::openReplay(const QString &path,bool isComparison){
-    if(backend.python.isEmpty()){settings();if(backend.python.isEmpty())return;}
     if(backend.building()){statusBar()->showMessage("Finish or cancel the current load first.");return;}
     cancel->setEnabled(true);progress->setValue(0);statusBar()->showMessage("Loading "+QFileInfo(path).fileName());
     backend.build(path,[this,path,isComparison](QJsonObject ready){
@@ -155,7 +181,7 @@ void Window::loadDatabase(const QString &path){
 void Window::setCacheDirectory(const QString &path){backend.cacheDir=path;}
 
 void Window::applyOverview(const QJsonObject &data){
-    loading=true;overview=data;players->clear();details->clear();evidenceFilter={};
+    loading=true;overview=data;players->clear();details->clear();evidenceFilter={};lastRequests.clear();navigationTime.reset();
     QSettings s;labels=QJsonDocument::fromJson(s.value("labels/"+data.value("provenance").toObject().value("replay_sha256").toString()).toByteArray()).object();
     for(const auto v:data.value("players").toArray()){
         const auto p=v.toObject();auto *item=new QListWidgetItem(players);item->setData(Qt::UserRole,p.value("number").toInt());item->setFlags(item->flags()|Qt::ItemIsUserCheckable);item->setCheckState(Qt::Checked);
@@ -163,7 +189,7 @@ void Window::applyOverview(const QJsonObject &data){
     action->clear();action->addItem("All actions","");for(const auto v:data.value("actions").toArray())action->addItem(v.toString(),v.toString());
     category->clear();category->addItem("All categories","");for(const auto v:data.value("categories").toArray())category->addItem(v.toString(),v.toString());
     search->clear();actor->clear();target->clear();type->clear();status->setCurrentIndex(0);timeFilter->setChecked(false);from->setValue(0);to->setValue(int(data.value("replay").toObject().value("duration_ms").toInteger()/1000));
-    renderOverview();loading=false;refresh();
+    renderOverview();if(smokeComplete)tabs->setCurrentWidget(events.widget);loading=false;refresh();
 }
 
 void Window::renderOverview(){
@@ -214,23 +240,98 @@ QJsonObject Window::request(const QString &view)const{
     return {{"view",view},{"filters",filters(view=="events"||view=="timeline"||view=="statistics")},{"profile",profile.isEmpty()?QJsonObject{{"name","Generic AoE2"}}:profile},{"user_labels",labels},{"opened_replay_path",replayPath}};
 }
 
+QJsonObject Window::queryRequest(const QString &view)const{
+    auto f=filters(view=="events"||view=="timeline"||view=="statistics");
+    // Keep the activity chart as context while selecting an event time window.
+    if(view=="timeline"){f.remove("from_ms");f.remove("to_ms");}
+    return {{"view",view},{"filters",f}};
+}
+
+bool Window::validateFilters(){
+    QStringList invalid;
+    for(const auto &entry:QList<QPair<QString,QLineEdit*>>{{"Actor ID",actor},{"Target ID",target},{"Type ID",type}}){
+        const bool valid=entry.second->hasAcceptableInput();
+        entry.second->setStyleSheet(valid?QString{}:"QLineEdit { border: 2px solid #c0392b; }");
+        if(!valid)invalid.append(entry.first);
+    }
+    if(invalid.isEmpty()){
+        if(statusBar()->currentMessage().startsWith("Enter a numeric value or clear:"))statusBar()->clearMessage();
+        return true;
+    }
+    const auto message="Enter a numeric value or clear: "+invalid.join(", ");
+    statusBar()->showMessage(message);
+    for(auto *pane:{&events,&episodes,&diagnostics}){
+        backend.cancelQuery(pane->model->kind);pane->model->replace({});pane->page->setText(message);
+        pane->previous->setEnabled(false);pane->next->setEnabled(false);
+    }
+    backend.cancelQuery("timeline");backend.cancelQuery("statistics");lastRequests.clear();
+    timeline->setBins({});analysis->setPlainText(message);comparison->clearContents();details->clear();
+    return false;
+}
+
+void Window::navigateTimeline(qint64 at){
+    debounce.stop();loading=true;
+    const qint64 half=qint64(zoom->value())*500;
+    from->setValue(int(std::max(qint64(0),at-half)/1000));to->setValue(int((at+half)/1000));
+    timeFilter->setChecked(true);evidenceFilter={};navigationTime=at;
+    timeLabel->setText("Selected "+EventModel::timestamp(at));tabs->setCurrentWidget(events.widget);
+    loading=false;
+    timeline->setSelection(true,qint64(from->value())*1000,qint64(to->value())*1000+999,navigationTime);
+    refreshPage(events,-1,at);
+}
+
 void Window::refresh(){
     if(database.isEmpty()||loading)return;
+    if(!validateFilters())return;
     const auto selected=filters(false).value("players").toArray();selectionLabel->setText(QString("%1 players selected%2").arg(selected.size()).arg(unknown->isChecked()?" + unknown ownership":""));
-    refreshPage(events);refreshPage(episodes);refreshPage(diagnostics);
-    backend.query(database,request("timeline"),"timeline",[this](QJsonObject data){timeline->setBins(data);smokeTimeline=true;checkSmoke();},[this](QString e){fail(e);});
-    backend.query(database,request("statistics"),"statistics",[this](QJsonObject data){updateStats(data);updateComparison(data);smokeStats=true;checkSmoke();},[this](QString e){fail(e);});
+    timeline->setSelection(timeFilter->isChecked(),qint64(from->value())*1000,qint64(to->value())*1000+999,navigationTime);
+    const auto *visible=tabs->currentWidget();
+    for(auto *pane:{&events,&episodes,&diagnostics})if(visible==pane->widget){refreshPage(*pane);return;}
+    const auto view=visible==timeline->parentWidget()?QString("timeline"):
+        (visible==analysis||visible==comparison)?QString("statistics"):QString{};
+    if(view.isEmpty())return;
+    const auto req=queryRequest(view);
+    if(lastRequests.value(view)==req){if(view=="statistics")updateComparison(overview.value("filtered_statistics").toObject());return;}
+    lastRequests[view]=req;const auto queriedDatabase=database;
+    backend.query(database,req,view,[this,view,req,queriedDatabase](QJsonObject result){
+        if(database!=queriedDatabase||queryRequest(view)!=req){if(lastRequests.value(view)==req)lastRequests.remove(view);return;}
+        if(view=="timeline"){timeline->setBins(result);smokeTimeline=true;}
+        else {overview["filtered_statistics"]=result;updateStats(result);updateComparison(result);smokeStats=true;}
+        checkSmoke();
+    },[this,view](QString e){lastRequests.remove(view);fail(e);});
 }
-void Window::refreshPage(TablePane &pane,int offset){
-    if(database.isEmpty())return;
-    auto req=request(pane.model->kind);req["offset"]=offset;req["limit"]=250;
+void Window::refreshPage(TablePane &pane,int offset,std::optional<qint64> anchor){
+    if(database.isEmpty()||!validateFilters())return;
+    const auto view=pane.model->kind;auto req=queryRequest(view);
+    const auto previous=lastRequests.value(view);
+    const bool sameFilters=previous.value("filters")==req.value("filters");
+    if(offset<0){
+        offset=sameFilters?previous.value("offset").toInt():0;
+        if(!anchor&&sameFilters&&previous.contains("anchor_ms"))anchor=previous.value("anchor_ms").toInteger();
+    }
+    req["offset"]=offset;req["limit"]=250;
+    if(anchor)req["anchor_ms"]=*anchor;
+    if(previous==req)return;
+    lastRequests[view]=req;const auto queriedDatabase=database;
     pane.page->setText("Querying…");pane.previous->setEnabled(false);pane.next->setEnabled(false);
     auto *targetPane=&pane;
-    backend.query(database,req,pane.model->kind,[this,targetPane](QJsonObject data){pageReceived(*targetPane,data);},[this](QString e){fail(e);});
+    backend.query(database,req,view,[this,targetPane,req,view,queriedDatabase](QJsonObject result){
+        if(database!=queriedDatabase||queryRequest(view).value("filters")!=req.value("filters")){
+            if(lastRequests.value(view)==req)lastRequests.remove(view);return;
+        }
+        auto completed=req;completed.remove("anchor_ms");completed["offset"]=result.value("offset");
+        lastRequests[view]=completed;pageReceived(*targetPane,result);
+    },[this,view](QString e){lastRequests.remove(view);fail(e);});
 }
 void Window::pageReceived(TablePane &pane,const QJsonObject &data){
     pane.model->replace(data);const auto count=pane.model->rowCount();pane.page->setText(QString("%1–%2 of %3").arg(count?pane.model->offset+1:0).arg(pane.model->offset+count).arg(pane.model->total));
     pane.previous->setEnabled(pane.model->offset>0);pane.next->setEnabled(pane.model->offset+count<pane.model->total);
+    if(pane.model->kind=="events"&&navigationTime){
+        int nearest=-1;qint64 distance=std::numeric_limits<qint64>::max();
+        for(int row=0;row<count;++row){const auto delta=std::abs(pane.model->record(row).value("time_ms").toInteger()-*navigationTime);if(delta<distance){distance=delta;nearest=row;}}
+        if(nearest>=0){pane.table->selectRow(nearest);pane.table->scrollTo(pane.model->index(nearest,0),QAbstractItemView::PositionAtCenter);}
+        statusBar()->showMessage("Events around "+EventModel::timestamp(*navigationTime)+"; nearest event on this page selected.");
+    }
     if(pane.model->kind=="events")smokeEvents=true;else if(pane.model->kind=="episodes")smokeEpisodes=true;else smokeDiagnostics=true;checkSmoke();
 }
 void Window::inspect(TablePane &pane){
@@ -240,17 +341,17 @@ void Window::inspect(TablePane &pane){
 }
 void Window::evidence(TablePane &pane){
     if(pane.model->kind=="events")return;const auto rows=pane.table->selectionModel()->selectedRows();if(rows.isEmpty())return;
-    const auto r=pane.model->record(rows.first().row());loading=true;
+    const auto r=pane.model->record(rows.first().row());debounce.stop();navigationTime.reset();loading=true;
     search->clear();actor->clear();target->clear();type->clear();action->setCurrentIndex(0);category->setCurrentIndex(0);status->setCurrentIndex(0);timeFilter->setChecked(false);
     for(int i=0;i<players->count();++i)players->item(i)->setCheckState(Qt::Checked);unknown->setChecked(true);
     if(pane.model->kind=="episodes")evidenceFilter={{"episode_id",r.value("id")}};
     else if(!r.value("episode_id").isNull())evidenceFilter={{"episode_id",r.value("episode_id")}};
     else evidenceFilter={{"ids",QJsonArray{r.value("first_event"),r.value("last_event")}}};
-    loading=false;tabs->setCurrentWidget(events.widget);refreshPage(events);statusBar()->showMessage("Showing exact supporting events. Reset filters to return to the complete stream.");
+    tabs->setCurrentWidget(events.widget);loading=false;refresh();statusBar()->showMessage("Showing exact supporting events. Reset filters to return to the complete stream.");
 }
 
 void Window::exportView(const QString &view,const QString &format){
-    if(database.isEmpty())return;auto path=QFileDialog::getSaveFileName(this,"Export "+view,{},format=="csv"?"CSV (*.csv)":format=="json"?"JSON (*.json)":"Summary (*.txt)");if(path.isEmpty())return;
+    if(database.isEmpty()||!validateFilters())return;auto path=QFileDialog::getSaveFileName(this,"Export "+view,{},format=="csv"?"CSV (*.csv)":format=="json"?"JSON (*.json)":"Summary (*.txt)");if(path.isEmpty())return;
     statusBar()->showMessage("Exporting all filtered rows…");backend.exportData(database,path,format,request(view),[this](QJsonObject data){statusBar()->showMessage("Exported "+data.value("exported").toString());},[this](QString e){fail(e);});
 }
 void Window::assignLabel(){
@@ -271,38 +372,63 @@ void Window::loadProfile(){
 }
 
 void Window::updateStats(const QJsonObject &data){
-    QString text="Observed decoded packet counts for the current event filters\n\n";QMap<int,QMap<QString,qint64>> counts;
-    for(const auto v:data.value("counts").toArray()){auto r=v.toObject();counts[r.value("player_id").isNull()?0:r.value("player_id").toInt()][r.value("category").toString()]=r.value("count").toInteger();}
-    for(auto p=counts.begin();p!=counts.end();++p){text+=(p.key()?"Player "+QString::number(p.key()):"Unknown player")+"\n";qint64 total=0;for(auto c=p.value().begin();c!=p.value().end();++c){text+="  "+c.key()+": "+QString::number(c.value())+"\n";total+=c.value();}text+="  Total recorded events: "+QString::number(total)+"\n\n";}
+    QString text="Observed decoded packet counts for the current event filters\n\n";
+    std::map<Owner,QMap<QString,qint64>> counts;
+    for(const auto v:data.value("counts").toArray()){const auto r=v.toObject();counts[owner(r.value("player_id"))][r.value("category").toString()]+=r.value("count").toInteger();}
+    for(const auto &[id,categories]:counts){
+        text+=ownerText(id)+"\n";qint64 total=0;
+        for(auto c=categories.begin();c!=categories.end();++c){text+="  "+c.key()+": "+QString::number(c.value())+"\n";total+=c.value();}
+        text+="  Total recorded events: "+QString::number(total)+"\n\n";
+    }
     text+="Production, construction and research values count requests. They do not count completed units, buildings or technologies.\n\n";
     text+="Inferred: Episodes and Diagnostics describe evidence-linked command patterns. Generic rules are printed with every finding.\n\nUnavailable: Resources gathered, actual production, kills, idle-unit time and winner.\n\n"+data.value("basis").toString();analysis->setPlainText(text);
 }
 void Window::updateComparison(const QJsonObject &data){
-    struct Row{QString replay;int player;QMap<QString,qint64> counts;double minutes;};QList<Row> rows;
-    auto append=[&](QJsonObject meta,QJsonObject stats){QMap<int,QMap<QString,qint64>> counts;for(const auto v:stats.value("counts").toArray()){auto r=v.toObject();counts[r.value("player_id").isNull()?0:r.value("player_id").toInt()][r.value("category").toString()]=r.value("count").toInteger();}
-        for(auto p=counts.begin();p!=counts.end();++p)rows.append({meta.value("replay").toObject().value("filename").toString(),p.key(),p.value(),meta.value("replay").toObject().value("duration_ms").toDouble()/60000.0});};
+    struct Row{QString replay,identity;Owner player;QMap<QString,qint64> counts;QJsonValue duration;};QList<Row> rows;
+    const auto currentIdentity=overview.value("provenance").toObject().value("replay_sha256").toString();
+    auto append=[&](const QJsonObject &meta,const QJsonObject &stats){
+        std::map<Owner,QMap<QString,qint64>> counts;
+        for(const auto v:stats.value("counts").toArray()){const auto r=v.toObject();counts[owner(r.value("player_id"))][r.value("category").toString()]+=r.value("count").toInteger();}
+        const auto replay=meta.value("replay").toObject();
+        for(const auto &[id,categories]:counts)rows.append({replay.value("filename").toString(),meta.value("provenance").toObject().value("replay_sha256").toString(),id,categories,replay.value("duration_ms")});
+    };
     append(overview,data);if(!comparisonOverview.isEmpty())append(comparisonOverview,comparisonOverview.value("statistics").toObject());
     QStringList categories;for(const auto &row:rows)for(auto it=row.counts.begin();it!=row.counts.end();++it)if(!categories.contains(it.key()))categories.append(it.key());categories.sort();
     comparison->clear();comparison->clearSpans();comparison->setColumnCount(4+categories.size());comparison->setRowCount(rows.size()+1);
     QStringList headers{"Replay / comparison context","Player","User label","Duration (min)"};headers+=categories;comparison->setHorizontalHeaderLabels(headers);
-    QString context="Within-replay counts share game settings. Values count packets, not completed actions.";
+    QString context="Current counts use active filters. Values count packets, not completed actions.";
     if(!comparisonOverview.isEmpty()){
         const auto a=overview.value("replay").toObject(),b=comparisonOverview.value("replay").toObject();
-        context="Cross-replay reference uses ALL players/events; current replay uses the selected filters. ";
-        context+=(a.value("settings")==b.value("settings")?"Decoded game settings match. ":"Decoded maps/settings/versions differ — counts are not directly comparable. ");
-        if(a.value("duration_ms")!=b.value("duration_ms"))context+="Durations differ. ";
-        if(overview.value("coverage")!=comparisonOverview.value("coverage"))context+="Event counts or coverage differ. ";
-        context+="Inspect both replay settings and warnings before drawing conclusions.";
+        const auto sa=a.value("settings").toObject(),sb=b.value("settings").toObject();
+        context+=" Reference counts use ALL players/events.\n";
+        context+="Map ID: "+comparisonState(sa.value("rms_map_id"),sb.value("rms_map_id"))+"; RMS filename: "+comparisonState(sa.value("rms_filename"),sb.value("rms_filename"))+"; exact map identity: unavailable.\n";
+        context+="Game version: "+comparisonState(sa.value("game_version"),sb.value("game_version"))+"; build: "+comparisonState(sa.value("build"),sb.value("build"))+"; save version: "+comparisonState(sa.value("save_version"),sb.value("save_version"))+"; log version: "+comparisonState(sa.value("log_version"),sb.value("log_version"))+".\n";
+        context+="Game mode ID: "+comparisonState(sa.value("game_type_id"),sb.value("game_type_id"))+".\n";
+        QStringList matching,different,unavailable;
+        auto fields=sa.keys();for(const auto &key:sb.keys())if(!fields.contains(key))fields.append(key);fields.sort();
+        for(const auto &key:fields){const auto state=comparisonState(sa.value(key),sb.value(key));
+            (state=="match"?matching:state=="different"?different:unavailable).append(key);
+        }
+        if(fields.isEmpty())context+="Decoded settings: unavailable.\n";
+        else context+=QString("Decoded settings fields: %1 match").arg(matching.size())+
+            (different.isEmpty()?QString{}:"; different: "+different.join(", "))+
+            (unavailable.isEmpty()?QString{}:"; unavailable: "+unavailable.join(", "))+".\n";
+        context+="Duration: "+comparisonState(a.value("duration_ms"),b.value("duration_ms"))+"; coverage: "+comparisonState(overview.value("coverage"),comparisonOverview.value("coverage"))+". Inspect both replay settings and warnings before drawing conclusions.";
     }
     comparison->setItem(0,0,new QTableWidgetItem(context));comparison->setSpan(0,0,1,headers.size());
-    comparison->setRowHeight(0,80);
-    for(int i=0;i<rows.size();++i){const auto &r=rows[i];comparison->setItem(i+1,0,new QTableWidgetItem(r.replay));comparison->setItem(i+1,1,new QTableWidgetItem(r.player?QString::number(r.player):"Unavailable"));
-        comparison->setItem(i+1,2,new QTableWidgetItem(r.replay==overview.value("replay").toObject().value("filename").toString()?labels.value(QString::number(r.player)).toObject().value("label").toString():""));
-        comparison->setItem(i+1,3,new QTableWidgetItem(QString::number(r.minutes,'f',2)));for(int c=0;c<categories.size();++c)comparison->setItem(i+1,c+4,new QTableWidgetItem(QString::number(r.counts.value(categories[c]))));}
+    comparison->setRowHeight(0,comparisonOverview.isEmpty()?60:170);
+    for(int i=0;i<rows.size();++i){const auto &r=rows[i];comparison->setItem(i+1,0,new QTableWidgetItem(r.replay));comparison->setItem(i+1,1,new QTableWidgetItem(r.player?QString::number(*r.player):"Unknown ownership"));
+        const bool ownsLabel=r.player&&!currentIdentity.isEmpty()&&r.identity==currentIdentity;
+        comparison->setItem(i+1,2,new QTableWidgetItem(ownsLabel?labels.value(QString::number(*r.player)).toObject().value("label").toString():""));
+        comparison->setItem(i+1,3,new QTableWidgetItem(r.duration.isDouble()?QString::number(r.duration.toDouble()/60000.0,'f',2):"Unavailable"));for(int c=0;c<categories.size();++c)comparison->setItem(i+1,c+4,new QTableWidgetItem(QString::number(r.counts.value(categories[c]))));}
     comparison->resizeColumnsToContents();comparison->setColumnWidth(0,300);comparison->horizontalHeader()->setStretchLastSection(true);
 }
 void Window::checkSmoke(){
-    if(!smokeComplete||!smokeEvents||!smokeEpisodes||!smokeDiagnostics||!smokeTimeline||!smokeStats)return;
+    if(!smokeComplete)return;
+    // Visit the same lazy views an interactive user opens, then check the model.
+    QWidget *needed=!smokeEvents?events.widget:!smokeEpisodes?episodes.widget:!smokeDiagnostics?diagnostics.widget:
+        !smokeTimeline?timeline->parentWidget():!smokeStats?analysis:nullptr;
+    if(needed){tabs->setCurrentWidget(needed);refresh();return;}
     // Check paging through the actual asynchronous event model, then restore it.
     if(smokeStage==0&&events.model->total>250){smokeStage=1;smokeEvents=false;refreshPage(events,250);return;}
     if(smokeStage==1){if(events.model->offset!=250){fail("Native paging did not reach offset 250");return;}smokeStage=2;smokeEvents=false;refreshPage(events,0);return;}
@@ -321,7 +447,33 @@ void Window::checkSmoke(){
         smokeExpected=episodes.model->record(0).value("event_count").toInteger();episodes.table->selectRow(0);smokeStage=5;smokeEvents=false;evidence(episodes);return;
     }
     if(smokeStage==5&&events.model->total!=smokeExpected){fail("Native episode evidence navigation returned the wrong membership");return;}
+    if(smokeStage<=5&&overview.value("coverage").toObject().value("events").toInteger()>0){
+        smokeStage=6;smokeEvents=false;loading=true;evidenceFilter={};timeFilter->setChecked(false);
+        tabs->setCurrentWidget(timeline->parentWidget());loading=false;
+        QTimer::singleShot(0,this,[this]{
+            const auto area=timeline->rect().adjusted(12,35,-12,-28);
+            const QPointF local(area.left()+area.width()*0.8,area.center().y());
+            QMouseEvent click(QEvent::MouseButtonPress,local,QPointF(timeline->mapToGlobal(local.toPoint())),Qt::LeftButton,Qt::LeftButton,Qt::NoModifier);
+            QApplication::sendEvent(timeline,&click);
+        });
+        return;
+    }
+    if(smokeStage==6){
+        if(!navigationTime||!timeFilter->isChecked()){fail("Timeline click did not set a time window");return;}
+        const auto f=filters(true);
+        for(int row=0;row<events.model->rowCount();++row){const auto time=events.model->record(row).value("time_ms").toInteger();
+            if(time<f.value("from_ms").toInteger()||time>f.value("to_ms").toInteger()){fail("Timeline navigation returned events outside its time window");return;}
+        }
+        if(events.model->rowCount()>0){
+            const auto selected=events.table->selectionModel()->selectedRows();
+            if(selected.isEmpty()){fail("Timeline navigation did not select an event");return;}
+            const auto chosen=std::abs(events.model->record(selected.first().row()).value("time_ms").toInteger()-*navigationTime);
+            for(int row=0;row<events.model->rowCount();++row){
+                if(std::abs(events.model->record(row).value("time_ms").toInteger()-*navigationTime)<chosen){fail("Timeline navigation selected an event farther from the clicked time");return;}
+            }
+        }
+    }
     bool good=!overview.isEmpty()&&events.model->rowCount()<=250&&events.model->columnCount()==10;
-    if(!screenshot.isEmpty()){loading=true;tabs->setCurrentWidget(events.widget);loading=false;events.table->selectRow(0);good=grab().save(screenshot)&&good;}
-    auto done=smokeComplete;smokeComplete={};done(good,QString("Loaded %1 events, %2 episodes, %3 findings; native paging, player filtering and evidence navigation passed").arg(overview.value("coverage").toObject().value("events").toInteger()).arg(episodes.model->total).arg(diagnostics.model->total));
+    if(!screenshot.isEmpty()){loading=true;tabs->setCurrentWidget(events.widget);loading=false;good=grab().save(screenshot)&&good;}
+    auto done=smokeComplete;smokeComplete={};done(good,QString("Loaded %1 events, %2 episodes, %3 findings; native paging, player filtering, evidence and timeline navigation passed").arg(overview.value("coverage").toObject().value("events").toInteger()).arg(episodes.model->total).arg(diagnostics.model->total));
 }
