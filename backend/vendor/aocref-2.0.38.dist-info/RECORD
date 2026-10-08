@@ -1,0 +1,16 @@
+aocref-2.0.38.dist-info/INSTALLER,sha256=zuuue4knoyJ-UwPPXg8fezS7VCrXJQrAP7zeNuwvFQg,4
+aocref-2.0.38.dist-info/METADATA,sha256=_37rqz1MfRuq7MEiFdvRmiM9-E-AjQGYPMOK4y4wGsI,197
+aocref-2.0.38.dist-info/RECORD,,
+aocref-2.0.38.dist-info/WHEEL,sha256=YVMoNqKzERt-wjUZwJ33xBGAwnFl-4cqbYkTtWa4itE,91
+aocref-2.0.38.dist-info/top_level.txt,sha256=dngrxcV7upv82DHOePmxM9YjVr5mcUxGWIs-mrflRbM,7
+aocref/__init__.py,sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU,0
+aocref/__pycache__/__init__.cpython-312.pyc,,
+aocref/data/constants.json,sha256=XWaD2ArgMCItEXFzbqi_RH16R9MH9vKsa47P3mNgFbA,2630
+aocref/data/datasets/0.json,sha256=IpN-Zb1rwUHap9jWC4F2KCwHLeS4GaR33PH0I_DlABo,34711
+aocref/data/datasets/1.json,sha256=m6FcMieWfL4GugjzM0mcTQq-zZ2H1qKCHdcJuvoMvZ8,55361
+aocref/data/datasets/100.json,sha256=DMxvsLcgMqmbO0VBbpmNresW3xarf_L700XmhY59AjU,74102
+aocref/data/datasets/101.json,sha256=v65kFj5uQDV8iGZPzhwTgG6Yc4EoWLYVZYql6hm2uvc,10849
+aocref/data/datasets/2.json,sha256=EC_EpNKS_pmXE79c2te3CoTv0i74Pco4P6mTNti1E6E,9039
+aocref/data/datasets/200.json,sha256=ZRvXRngzjx7BXwJQQguVoCw9IyziIoXU0OVNPm57_3o,8065
+aocref/data/datasets/300.json,sha256=Pp3IVTlqnzOA4Vx7VsVB6D6t6HYMzZ6ih2LvcHGFISM,58646
+aocref/data/datasets/7.json,sha256=D1_e1L06ElgJnaTzrGznxsnSqF_5Puj1cQ6yLWR6Qm8,52141

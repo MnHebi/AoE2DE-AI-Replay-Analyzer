@@ -1,0 +1,9 @@
+build*/
+dist/
+__pycache__/
+*.pyc
+*.sqlite
+*.partial
+validation/
+.tools/
+AoE2ReplayAnalysis-Windows-x64.zip
