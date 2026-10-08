@@ -179,6 +179,12 @@ execution or real vanilla/default-AI coverage. Python 3.12+ remains external.
   the installed package. The pipeline remains
   `d5755213a944e52e46ed67cc6008da88396d42622ce975487f93e769c1bb35ab`.
 
+- Release ZIP integrity, all 171 certified payload hashes and all 148 committed
+  source files passed exact byte verification. No replay, cache, SDK or local
+  evidence is included. The extracted EXE rendered help with missing interpreter
+  and backend overrides, then passed the same two replay checks with SDK paths
+  absent. `SHA256SUMS.txt` records the complete archive digest.
+
 Local evidence is under ignored `validation/release-v0.1.2/`. These checks cover
 the new help and existing tested native paths. Replay-format, gameplay-outcome,
 Linux and real vanilla/default-AI coverage limits remain unchanged; replay

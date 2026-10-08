@@ -70,3 +70,5 @@ Python/backend overrides, then exercised the small replay and existing large
 index with SDK paths absent. Backend bytes and the v0.1.1 pipeline fingerprint
 are unchanged. See VALIDATION.md; local evidence and the fresh install stage are
 under ignored `validation/release-v0.1.2/` and `build/release-v0.1.2-install/`.
+The ZIP passed all 171 payload hashes and all 148 committed-source byte checks;
+the extracted EXE passed help rendering and both native replay smoke checks.
