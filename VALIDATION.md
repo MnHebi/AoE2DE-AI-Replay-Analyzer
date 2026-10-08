@@ -137,6 +137,11 @@ extend the previously stated replay-format, vanilla/default-AI or Linux coverage
   The change comes from the adapter's additive navigation query; vendor parser
   and helper bytes are unchanged. Older indices retain their original pipeline
   hashes, and fresh builds use the new cache identity.
+- Release ZIP integrity, all 169 certified payload hashes and all 146 source
+  files passed verification against the committed source snapshot. The manifest
+  records its source commit. No replay, cache, SDK or local evidence is included.
+  The extracted EXE passed the same two smoke checks with Python/backend
+  overrides unset and SDK paths removed. `SHA256SUMS.txt` records the ZIP digest.
 
 Local evidence is under ignored `validation/release-v0.1.1/`. The first native
 test attempt could not create SQLite data in the default temporary location;

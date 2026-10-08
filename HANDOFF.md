@@ -52,3 +52,6 @@ The release stage is under ignored `build/release-v0.1.1-install/` because the
 existing local `dist/` was locked. The packager accepts `--dist PATH` and bundles
 source bytes from the committed revision, recorded in `CERTIFICATION.json`,
 so unrelated local edits are excluded. Local release evidence remains ignored.
+The v0.1.1 ZIP passed integrity, all 169 payload hashes, all 146 committed-source
+byte comparisons and both extracted-EXE smoke checks. Publish its companion
+`SHA256SUMS.txt` with the ZIP; neither generated asset belongs in source control.
