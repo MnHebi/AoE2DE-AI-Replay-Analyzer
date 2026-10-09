@@ -106,3 +106,5 @@ on the corrected large index. The large replay was not rebuilt for packaging.
 Release evidence stays under ignored `validation/release-v0.1.3/`; use the
 packager with this stage, retaining exact committed-source certification and
 the companion SHA256SUMS.txt. User-local AGENTS.md edits are excluded.
+The v0.1.3 ZIP passed all 171 payload hashes and all 148 committed-source byte
+comparisons; its extracted parser and EXE passed the same package checks.

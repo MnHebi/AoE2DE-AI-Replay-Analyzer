@@ -283,6 +283,12 @@ sources. The fix is independent of player identity and custom AI/game data.
   the package. The pipeline fingerprint is
   `f9d74470c5f51afe124eef92711176cdde34fb00fc898ccdf7f98b26426e28cd`.
 
+- ZIP integrity, all 171 certified payload hashes and all 148 committed-source
+  byte comparisons passed. The extracted package passed its own research packet
+  checks, offline help rendering, small-replay decoding and native checks on the
+  corrected large index with SDK paths absent. No replay, cache, SDK or local
+  evidence is included. SHA256SUMS.txt records the complete archive digest.
+
 Local release logs and checks are under ignored `validation/release-v0.1.3/`.
 Reopening the source replay selects the corrected cache identity; opening an old
 index preserves that index's original data and provenance. Python 3.12+ remains
