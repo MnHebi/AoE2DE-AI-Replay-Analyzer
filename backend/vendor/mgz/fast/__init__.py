@@ -261,8 +261,16 @@ def action(data, sequence=None):
     else:
         try:
             payload = parse_action(action_type, action_bytes)
-        except struct.error:
-            return Action.ERROR, {}
+        except struct.error as error:
+            # Keep the framed packet as unresolved evidence and continue reading
+            # subsequent operations. Do not invent fields from a failed parse.
+            action_type = Action.ERROR
+            payload = dict(original_action_id=action_id,
+                           original_payload_length=length - 1,
+                           raw_hex=action_bytes.hex(), decode_error=str(error))
+        else:
+            if action_type is Action.RESEARCH:
+                payload["raw_hex"] = action_bytes.hex()
     payload["sequence"] = sequence
     return action_type, payload
 

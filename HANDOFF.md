@@ -72,3 +72,37 @@ are unchanged. See VALIDATION.md; local evidence and the fresh install stage are
 under ignored `validation/release-v0.1.2/` and `build/release-v0.1.2-install/`.
 The ZIP passed all 171 payload hashes and all 148 committed-source byte checks;
 the extracted EXE passed help rendering and both native replay smoke checks.
+
+The 2026-10-09 RESEARCH decoder correction is a local patch to two bundled
+`mgz/fast` files, documented in THIRD_PARTY.md. Header-only 13-byte inner packets
+and exact `13 + 4 * selected` packets decode by validated length, without player
+or AI assumptions. Unsupported inner layouts use the existing `struct.error`
+path and retain original action ID, payload length, full bytes, parser error and
+sequence as unresolved evidence; subsequent framed operations remain readable.
+Successful RESEARCH packets retain full payload bytes as well. Schema v1 remains
+unchanged. Outer framing corruption can still stop decoding, without resync.
+
+All 15 backend tests and the three existing CTest targets passed. The large
+replay was rebuilt once into a separate cache: 834,607 events stayed unchanged,
+RESEARCH rose from 0 to 531 and unresolved packets fell from 531 to 0. All
+834,076 other event rows are identical, and every event's ID, timestamp, sequence
+and offset is unchanged. Diagnostics fell from 7,302 to 6,771; repeated-command
+findings remain 6,771. The existing Release GUI passed its native smoke paths
+against the corrected index. Old indices and source replay remain untouched.
+
+The new pipeline fingerprint is
+`f9d74470c5f51afe124eef92711176cdde34fb00fc898ccdf7f98b26426e28cd`.
+Local baseline, controlled-build log, comparison results and corrected index are
+under ignored `validation/research-fix/`. Future builds use this new cache
+identity; opening an older index directly retains its original data/provenance.
+See VALIDATION.md for exact scope. Release v0.1.3 packages this correction;
+reopen the original replay to build a corrected index. Existing indices retain
+their original data and provenance.
+
+For v0.1.3, Release build and all three CTest targets passed. The fresh install
+stage under ignored `build/release-v0.1.3-install/` passed its bundled research
+packet checks, offline help rendering, a fresh small decode and native checks
+on the corrected large index. The large replay was not rebuilt for packaging.
+Release evidence stays under ignored `validation/release-v0.1.3/`; use the
+packager with this stage, retaining exact committed-source certification and
+the companion SHA256SUMS.txt. User-local AGENTS.md edits are excluded.

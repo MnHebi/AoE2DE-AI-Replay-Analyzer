@@ -22,6 +22,11 @@ Choose **File → Open Replay** for a Definitive Edition `.aoe2record` file.
 Recent paths and explicit user labels are stored in Qt settings. Derived indices
 are stored in the per-user application cache, never in the AI source checkout.
 
+When upgrading to v0.1.3 for the RESEARCH decoding correction, reopen the original
+`.aoe2record` file. The changed decoder fingerprint selects a fresh index while
+keeping the old cache intact. **Open indexed replay** reads that index's original
+data and does not apply decoder corrections to it.
+
 The supplied `launch.ps1` uses the configured `AOE2_PYTHON` executable, a bundled
 Codex Python 3 runtime when available, or an explicitly supplied `-Python` path.
 The EXE also discovers Python directly: it validates the configured executable,

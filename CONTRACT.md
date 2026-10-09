@@ -49,6 +49,15 @@ Status has four meanings: `observed` decoded fields, `inferred` interpretation,
 (represented by null values, not fabricated rows or zero metrics). Corrections
 fail closed with original packet bytes retained; potentially corrupt fallback
 actor IDs are discarded. The frontend exposes fields independently of status.
+Framed action parse errors retain `original_action_id`,
+`original_payload_length` (excluding the action-ID byte), full action-payload
+`raw_hex` and `decode_error` in `raw_json`. Their timestamps, operation sequence
+and replay offsets remain indexed, and later framed operations can still decode.
+Successful RESEARCH records also retain the full action payload, including its
+DE player/inner-length wrapper when present. Existing helper-captured command
+`raw_hex` fields retain their original inner-payload scope. These additive JSON
+fields do not change the SQLite schema. Damaged outer operation framing can
+still stop decoding; preserving evidence does not justify byte resynchronization.
 Repeated-command identity is based on decoded fields, with selection membership
 removed for per-actor analysis. Unexposed packet bytes may differ; this is not a
 claim of complete binary packet equivalence or an internal AI loop.

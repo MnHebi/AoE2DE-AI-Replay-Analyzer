@@ -13,7 +13,14 @@ def parse_action_71094(action_type, player_id, raw):
         unpack('<b', data)
     if action_type is Action.RESEARCH:
         object_id, selected, technology_id = unpack('<Ihh5x', data)
-        selected_building_ids = unpack(f'<{selected}I', data, shorten=False)
+        # RESEARCH permits a bare header or an exact selected-building list.
+        # Choose by length, independently of the player's identity.
+        if selected < 0 or len(raw) not in (13, 13 + 4 * selected):
+            raise struct.error(
+                f"RESEARCH: unsupported payload length {len(raw)} for selected={selected}"
+            )
+        if len(raw) > 13:
+            unpack(f'<{selected}I', data, shorten=False)
         payload = dict(technology_id=technology_id, object_ids=[object_id])
     if action_type is Action.GAME:
         command_id = unpack('<h', data)

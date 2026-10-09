@@ -189,3 +189,102 @@ Local evidence is under ignored `validation/release-v0.1.2/`. These checks cover
 the new help and existing tested native paths. Replay-format, gameplay-outcome,
 Linux and real vanilla/default-AI coverage limits remain unchanged; replay
 analysis still requires external Python 3.12+.
+
+## RESEARCH packet decoding correction — 2026-10-09
+
+- Confirmed the exact supplied 16-byte outer payload fails the old parser when
+  it attempts to read a missing four-byte building ID after the 13-byte header.
+  The new isolated test reproduced that failure before the patch. Upstream
+  PR #149 was inspected through GitHub CLI: closed, unmerged; its length-based
+  rule matches this fork, but its `ValueError` would stop this adapter's stream.
+- Two bundled `mgz/fast` files were changed. RESEARCH accepts the 13-byte header
+  or an exact header plus `4 * selected` bytes, rejecting negative selection
+  counts and unsupported sizes through `struct.error`. List-bearing packets
+  preserve the established decoded fields. The framed-action error path retains
+  original action ID, declared payload length excluding the action-ID byte,
+  full payload bytes, error text and wire sequence instead of returning an empty
+  ERROR record. Successful research also retains full payload bytes. Other
+  parser/helper files and dependency metadata retain their bytes; license
+  notices and pre-existing vendor line endings are preserved.
+- Python 3.12.14 ran `-m unittest discover -s tests -p test_adapter.py -v`:
+  all 15 tests passed. Six new cases cover the exact packet (player 1, actor
+  7698, technology 22), one-/two-ID list-bearing packets, legacy research,
+  unrelated valid actions, truncated/extra-byte/negative-count layouts,
+  unresolved evidence and continuation into a valid operation. A body fixture
+  checks timestamps, operation sequence, offsets, SQLite evidence diagnostics,
+  observed research status, and CLI cache reuse. Its header/preamble are supplied
+  fixtures, not evidence of additional supported replay formats.
+- Initial new-test setup failures were corrected by explicitly loading the
+  bundled helper path and closing the fixture's SQLite handle before Windows
+  temporary-directory cleanup. These were fixture issues; the final full
+  focused suite passed.
+- The available large replay has SHA-256
+  `1f9fa112050090de1e0a33bf7885ad41229f5da3cb5111eb4d684eb4069f9446`.
+  Direct byte inspection at all 531 old ERROR offsets confirmed action ID 101
+  and 16-byte payloads. One controlled full rebuild took 55.456 seconds and
+  published a fresh index in a separate cache. Actual results:
+
+  | Metric | Before | After |
+  | --- | ---: | ---: |
+  | Recorded events | 834,607 | 834,607 |
+  | RESEARCH actions | 0 | 531 |
+  | ERROR / unresolved packets | 531 | 0 |
+  | Diagnostic findings | 7,302 | 6,771 |
+  | Repeated-command findings | 6,771 | 6,771 |
+  | Episodes | 33,479 | 33,480 |
+
+- All 834,076 unaffected event rows compare exactly, including decoded JSON,
+  indexed fields and signatures. Every event retains its ID, original operation
+  sequence, timestamp and replay offset. Each restored record was checked
+  against its source packet for player, building, technology and full bytes.
+  Player metadata and replay settings/duration remain equal. No research packet
+  remains unresolved in this replay. Commands are requests; no research
+  completion or AI intent was inferred.
+- The source fingerprint changed from
+  `d5755213a944e52e46ed67cc6008da88396d42622ce975487f93e769c1bb35ab` to
+  `f9d74470c5f51afe124eef92711176cdde34fb00fc898ccdf7f98b26426e28cd`.
+  The first invocation reported a cache miss; a second invocation reported a
+  hit on that same new index without decoding again. Schema remains v1.
+  Complete SHA-256 comparisons confirm the baseline index and original replay
+  are unchanged. Older indices remain readable with their original provenance.
+- `ctest --test-dir build -C Release --output-on-failure` passed all three
+  targets. The existing Release executable, using the changed source backend,
+  opened the corrected large index and passed native paging, player selection,
+  exact episode evidence and timeline navigation, with 531 restored research
+  requests and 6,771 findings. No native source or release asset was changed.
+
+Local scripts, baseline packet evidence, build log, corrected index, results and
+GUI screenshot are under ignored `validation/research-fix/`. Unknown inner
+layouts remain unresolved; damaged outer operation framing may still stop
+decoding. This verification covers the available replay and deterministic packet
+fixtures, not all game versions or actual standard/default-AI and human replay
+sources. The fix is independent of player identity and custom AI/game data.
+
+## Windows release v0.1.3 — 2026-10-09
+
+- `cmake --build build --config Release` passed with the configured MSVC/Qt
+  toolchain. CTest passed all three targets after the release version update.
+  The preceding correction section records the 15 passing backend tests and
+  single controlled large-replay rebuild; that large replay was not rebuilt
+  again for packaging.
+- Fresh installation under ignored `build/release-v0.1.3-install/` passed
+  isolated checks using its own bundled parser: the exact header-only packet,
+  two-ID list-bearing research, and a malformed packet retaining its original
+  ID, length, raw bytes and error while a following valid packet still decodes.
+- Installed help rendered with nonexistent Python/backend overrides. With SDK
+  paths absent and Python/backend overrides unset, the installed EXE decoded
+  the 23-event replay and opened the corrected 834,607-event index. Both passed
+  native paging, player selection, exact evidence and timeline navigation. The
+  large index retains 531 RESEARCH requests, zero unresolved packets and 6,771
+  findings. The small replay's rows still match the original baseline exactly.
+- Every installed backend file matches the current source bytes, including the
+  two corrected parser modules; the GPLv3 license matches. The EXE contains no
+  current or original development path, and parser/helper roots resolve inside
+  the package. The pipeline fingerprint is
+  `f9d74470c5f51afe124eef92711176cdde34fb00fc898ccdf7f98b26426e28cd`.
+
+Local release logs and checks are under ignored `validation/release-v0.1.3/`.
+Reopening the source replay selects the corrected cache identity; opening an old
+index preserves that index's original data and provenance. Python 3.12+ remains
+external. Existing replay-format, gameplay-outcome, Linux and real
+vanilla/default-AI/human replay coverage limits still apply.

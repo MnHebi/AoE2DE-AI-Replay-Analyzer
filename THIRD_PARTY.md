@@ -21,3 +21,13 @@
 Local modifications to the bundled parser were already present in the source
 parser environment. The adapter fingerprints its complete Python/reference
 content rather than treating the upstream package version as sufficient identity.
+
+On 2026-10-09, this application adds two narrow changes in `mgz/fast`:
+`actions.py` accepts header-only and exact list-bearing RESEARCH payloads,
+and `__init__.py` preserves original action IDs, payload lengths, bytes, sequence
+and parsing errors when an action becomes ERROR. Successful RESEARCH packets
+also retain their original payload bytes. This adapts the layout evidence in
+https://github.com/happyleavesaoc/aoc-mgz/pull/149 while using `struct.error`
+for unsupported layouts so the existing framed-action error path can continue.
+Original MIT notices and dependency metadata remain intact. Other bundled parser
+files and the MIT helper modules retain their original bytes.
